@@ -636,3 +636,14 @@ td .avatar::after { display: none; }
 .filters { align-items: start; }
 .filters .field > .row { min-width: 0; flex-wrap: nowrap; }
 .filters .field > .row > * { min-width: 0; flex: 1 1 0; }
+/* resmi satış satırı: adet · birim (KDV hariç) · matrah · KDV · toplam */
+.irow.off { grid-template-columns: minmax(0, 1fr) 64px 104px 112px 96px 112px 28px; }
+.irow.ihead { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-bottom: -2px; }
+.irow.ihead span { text-align: right; padding-right: 4px; }
+.irow [data-ik=line_net] { text-align: right; font-weight: 600; }
+.irow [data-ik=line_vat] { text-align: right; color: var(--blue-text); background: transparent; }
+@media (max-width: 760px) {
+  .irow.off { grid-template-columns: 1fr 56px 1fr 28px; }
+  .irow.off .net, .irow.off .vat, .irow.ihead { display: none; }
+}
+.irow.off [data-ik=line_total] { color: var(--text); font-weight: 700; }

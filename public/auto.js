@@ -146,7 +146,7 @@ function orderCard(o, i) {
       <div class="who"><input data-k="customer_name" value="${esc(o.customer_name)}" placeholder="${o.anonymous ? 'Mağaza müşterisi (isimsiz)' : 'Ad soyad'}"><div class="meta">${metaHtml} ${tags}</div></div>
       <div class="sum">${money(orderTotal(o))}${o.order_total != null && Math.abs(o.order_total - orderTotal(o)) > 1 ? `<small>mesajda ${money(o.order_total)}</small>` : ''}${o.is_official && orderTotal(o) ? `<small class="vatline">KDV hariç ${money(orderTotal(o) / 1.2)} · KDV %20 ${money(orderTotal(o) - orderTotal(o) / 1.2)}</small>` : ''}</div>
       <div class="row" style="gap:6px"><label class="chk-ok ${o._ok && !o._off ? 'on' : ''}"><input type="checkbox" data-a="ok" ${o._ok ? 'checked' : ''}>${icon('check')} Onayla</label><button class="btn sm ghost icon" data-a="off" title="${o._off ? 'Geri al' : 'Atla'}">${icon(o._off ? 'history' : 'x')}</button></div></div>
-    <div class="items">${(o.items || []).map((it, j) => itemRow(it, j, o.is_official ? 1.2 : 1)).join('')}</div>
+    <div class="items">${o.is_official && (o.items || []).length ? '<div class="irow off ihead"><span></span><span>Adet</span><span title="Birim fiyat, KDV hariç">Birim</span><span>Matrah</span><span>KDV %20</span><span>Toplam</span><span></span></div>' : ''}${(o.items || []).map((it, j) => itemRow(it, j, o.is_official ? 1.2 : 1)).join('')}</div>
     <div class="foot">
       <details ${o._open ? 'open' : ''}><summary>${icon('pen')} Detaylar</summary></details><button class="btn sm ghost" data-a="additem">+ Ürün</button></div>
     <div class="detail ${o._open ? '' : 'hidden'}">
@@ -170,10 +170,11 @@ function itemRow(it, j, vf = 1) { // vf: resmi satışta 1.2 (birim fiyat KDV ha
   const warn = itemWarn(it);
   const alts = (it.alternatives || []).filter(a => a.variant_id !== it.variant_id).slice(0, 5);
   const issues = itemIssues(it);
-  return `<div class="irow ${warn ? 'warn' : ''}" data-j="${j}">
+  return `<div class="irow ${warn ? 'warn' : ''} ${vf > 1 ? 'off' : ''}" data-j="${j}">
     <div class="ac"><input class="in" data-ik="description" value="${esc(it.description)}" placeholder="Ürün ara" title="${esc(it.raw_text || '')}"></div>
     <input class="in" data-ik="qty" inputmode="decimal" value="${esc(numIn(it.qty))}" title="Adet">
     <input class="in" data-ik="unit_price" inputmode="decimal" value="${esc(numIn(Math.round((Number(it.unit_price) || 0) / vf * 100) / 100))}" placeholder="Fiyat" title="${vf > 1 ? 'Birim fiyat (KDV hariç)' : 'Birim fiyat'}">
+    ${vf > 1 ? (() => { const tot = Math.round((Number(it.qty) || 0) * (Number(it.unit_price) || 0) * 100) / 100, net = Math.round(tot / vf * 100) / 100; return `<input class="in lt net" data-ik="line_net" inputmode="decimal" value="${esc(numIn(net))}" title="Matrah (KDV hariç satır toplamı)"><input class="in lt vat" data-ik="line_vat" value="${esc(numIn(Math.round((tot - net) * 100) / 100))}" title="KDV %20" readonly tabindex="-1">`; })() : ''}
     <input class="in lt" data-ik="line_total" inputmode="decimal" value="${esc(numIn((Number(it.qty) || 0) * (Number(it.unit_price) || 0)))}" title="${vf > 1 ? 'Satır toplamı (KDV dahil)' : 'Satır toplamı'}">
     <button class="x" data-a="rmitem" title="Sil">${icon('x')}</button>
     ${it.is_band ? `<div class="ihint band">${icon('saw')} Boy <input class="in sm" data-ik="band_length_mm" inputmode="decimal" value="${esc(numIn(it.band_length_mm))}" style="width:90px;height:28px"> mm${it.band_length_mm ? ` · ${numIn(Math.round(it.band_length_mm * (it.qty || 0) / 10) / 100)} m` : ''}</div>` : ''}
@@ -202,7 +203,7 @@ function bindOrder(card, o, i, cnt) {
     };
   });
   const il = card.querySelector('[data-k=il]'), ilce = card.querySelector('[data-k=ilce]'); if (il && ilce) ilIlce(il, ilce);
-  $$('.irow', card).forEach(row => {
+  $$('.irow:not(.ihead)', card).forEach(row => {
     const it = o.items[+row.dataset.j];
     const d = row.querySelector('[data-ik=description]');
     const pick = v => { Object.assign(it, { variant_id: v.id, product_id: v.p.id, description: v.text, is_band: !!v.p.is_band, confidence: 'ok', warnings: (it.warnings || []).filter(w => !/eşleş|varyant|Marka|Freud/i.test(w)) }); if (!it.is_band) it.band_length_mm = null; redraw(); };
@@ -210,8 +211,11 @@ function bindOrder(card, o, i, cnt) {
     d.oninput = () => { it.description = d.value; it.variant_id = null; it.product_id = null; };
     const alt = row.querySelector('[data-ik=alt]'); if (alt) alt.onchange = () => { const v = variantById(alt.value); if (v) pick(v); };
     const upd = () => { const s = card.querySelector('.sum'); if (s) s.firstChild.textContent = money(orderTotal(o)); const vl = card.querySelector('.vatline'); if (vl) { const t = orderTotal(o); vl.textContent = `KDV hariç ${money(t / 1.2)} · KDV %20 ${money(t - t / 1.2)}`; } };
-    for (const k of ['qty', 'unit_price', 'band_length_mm']) { const x = row.querySelector(`[data-ik=${k}]`); if (x) { x.onchange = () => { const re = { qty: /Adet/, unit_price: /Fiyat|eşit bölündü|birim mi/, band_length_mm: /Şerit boyu/ }[k]; const before = (it.warnings || []).length; it.warnings = (it.warnings || []).filter(w => !re.test(w)); if (it.warnings.length !== before) redraw(); }; } if (x) x.oninput = () => { const vf = o.is_official ? 1.2 : 1; it[k] = parseNum(x.value); if (k === 'unit_price' && it[k] != null) it[k] = Math.round(it[k] * vf * 10000) / 10000; if (k === 'qty') it.qty_missing = false; row.querySelector('[data-ik=line_total]').value = numIn(Math.round((Number(it.qty) || 0) * (Number(it.unit_price) || 0) * 100) / 100); upd(); }; }
-    const lt = row.querySelector('[data-ik=line_total]'); lt.oninput = () => { const t = parseNum(lt.value); if (t != null && Number(it.qty)) { it.unit_price = +(t / Number(it.qty)).toFixed(4); row.querySelector('[data-ik=unit_price]').value = numIn(Math.round(it.unit_price / (o.is_official ? 1.2 : 1) * 100) / 100); } upd(); };
+    for (const k of ['qty', 'unit_price', 'band_length_mm']) { const x = row.querySelector(`[data-ik=${k}]`); if (x) { x.onchange = () => { const re = { qty: /Adet/, unit_price: /Fiyat|eşit bölündü|birim mi/, band_length_mm: /Şerit boyu/ }[k]; const before = (it.warnings || []).length; it.warnings = (it.warnings || []).filter(w => !re.test(w)); if (it.warnings.length !== before) redraw(); }; } if (x) x.oninput = () => { const vf = o.is_official ? 1.2 : 1; it[k] = parseNum(x.value); if (k === 'unit_price' && it[k] != null) it[k] = Math.round(it[k] * vf * 10000) / 10000; if (k === 'qty') it.qty_missing = false; row.querySelector('[data-ik=line_total]').value = numIn(Math.round((Number(it.qty) || 0) * (Number(it.unit_price) || 0) * 100) / 100); syncNV(); upd(); }; }
+    // resmi satış: matrah + KDV kutuları satır toplamıyla senkron
+    const syncNV = (skip) => { const n = row.querySelector('[data-ik=line_net]'), v = row.querySelector('[data-ik=line_vat]'); if (!n) return; const tot = Math.round((Number(it.qty) || 0) * (Number(it.unit_price) || 0) * 100) / 100, net = Math.round(tot / 1.2 * 100) / 100; if (skip !== 'net') n.value = numIn(net); v.value = numIn(Math.round((tot - net) * 100) / 100); if (skip !== 'total') row.querySelector('[data-ik=line_total]').value = numIn(tot); };
+    const lt = row.querySelector('[data-ik=line_total]'); lt.oninput = () => { const t = parseNum(lt.value); if (t != null && Number(it.qty)) { it.unit_price = +(t / Number(it.qty)).toFixed(4); row.querySelector('[data-ik=unit_price]').value = numIn(Math.round(it.unit_price / (o.is_official ? 1.2 : 1) * 100) / 100); } syncNV('total'); upd(); };
+    const ln = row.querySelector('[data-ik=line_net]'); if (ln) ln.oninput = () => { const t = parseNum(ln.value); if (t != null && Number(it.qty)) { it.unit_price = +(t * 1.2 / Number(it.qty)).toFixed(4); row.querySelector('[data-ik=unit_price]').value = numIn(Math.round(t / Number(it.qty) * 100) / 100); } syncNV('net'); upd(); };
     row.querySelector('[data-a=rmitem]').onclick = () => { o.items.splice(+row.dataset.j, 1); redraw(); };
   });
   card.querySelector('[data-a=additem]').onclick = () => { o.items.push({ description: '', qty: 1, unit_price: 0, warnings: [], confidence: 'low' }); redraw(); };
