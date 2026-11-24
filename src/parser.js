@@ -339,7 +339,7 @@ function parseWA(m, idx, sources, payments, reps = []) {
       if (mm[1] && isRepToken(mm[1], reps)) takeRep(mm[1]); else if (mm[1]) notes.push(mm[1]);
       let tail = (mm[3] || '').trim();
       const rp = tail.match(/^\(([^)]+)\)(.*)$/); if (rp && isRepToken(rp[1], reps)) { takeRep(rp[1]); tail = rp[2].trim(); }
-      if (tail) { const p = payFrom(tail, payments); if (p !== 'Belirsiz') o.payment = p; if (/kdv\s*dahil/i.test(tail)) o.vat_mode = 'incl'; notes.push(tail.replace(/^\(|\)$/g, '')); }
+      if (tail) { const p = payFrom(tail, payments); if (p !== 'Belirsiz') o.payment = p; if (/kdv\s*dah/i.test(tail)) o.vat_mode = 'incl'; else if (/\+\s*kdv|kdv\s*har/i.test(tail)) o.total_vat = 'excl'; else notes.push(tail.replace(/^\(|\)$/g, '')); }
       return;
     }
     if ((mm = l.match(TOTAL_RE))) {
@@ -351,7 +351,7 @@ function parseWA(m, idx, sources, payments, reps = []) {
       const rp = tail.match(/\(([^)]+)\)/g) || [];
       for (const x of rp) { const t = x.slice(1, -1); if (!o.rep && isRepToken(t, reps)) takeRep(t); else { const pp = payFrom(t, payments); if (pp !== 'Belirsiz') o.payment = pp; notes.push(t); } }
       tail = tail.replace(/\([^)]*\)/g, '').trim();
-      if (tail) { const p = payFrom(tail, payments); if (p !== 'Belirsiz') o.payment = p; if (/kdv\s*dahil/i.test(tail)) o.vat_mode = 'incl'; if (!/^(toplam|kdv dahil)$/i.test(tail)) notes.push(tail); }
+      if (tail) { const p = payFrom(tail, payments); if (p !== 'Belirsiz') o.payment = p; if (/kdv\s*dah/i.test(tail)) o.vat_mode = 'incl'; else if (/\+\s*kdv|kdv\s*har/i.test(tail)) o.total_vat = 'excl'; if (!/^(toplam|kdv dahil|\+\s*kdv|kdv\s*har[iı][çc])$/i.test(tail)) notes.push(tail); }
       return;
     }
     if ((mm = l.match(TOTAL_EMPTY_RE))) { // Wp(değişim, kaynak yeri sıkıntılı)
@@ -464,6 +464,12 @@ function parseWA(m, idx, sources, payments, reps = []) {
   if (o.payment === 'Belirsiz' && !o.anonymous && !o.store) o.uncertain_fields.push('payment');
   // mağaza siparişi: ödeme yazmıyorsa ya da nakit yazıyorsa Mağaza Nakit
   if ((o.payment === 'Belirsiz' || o.payment === 'Nakit') && (o.store || o.anonymous || o.source === 'Mağaza') && !o.exchange && payments.includes('Mağaza Nakit')) { o.payment = 'Mağaza Nakit'; o.uncertain_fields = o.uncertain_fields.filter(x => x !== 'payment'); }
+  // "+KDV" / "KDV hariç" yazan tutarlar KDV'siz: içeride her şey KDV dahil tutulur, o yüzden %20 eklenir (10700+KDV → 12.840)
+  if (o.total_vat === 'excl' || o.items.some(it => it.vat === 'excl')) {
+    for (const it of o.items) if (it.vat === 'excl' && it.line_total != null) { it.line_total = Math.round(it.line_total * 1.2 * 100) / 100; it.vat = 'incl'; }
+    if (o.total_vat === 'excl' && o.order_total != null) o.order_total = Math.round(o.order_total * 1.2 * 100) / 100;
+    o.vat_mode = 'incl'; o.is_official = true; delete o.total_vat;
+  }
   if (o.promo && !(o.order_total > 0) && !o.items.some(it => it.line_total > 0)) { o.payment = 'Belirsiz'; o.uncertain_fields = o.uncertain_fields.filter(x => x !== 'payment'); } // fiyatsız reklam/bedelsiz gönderim: ödeme sorulmaz
   if (!o.items.length) o.uncertain_fields.push('items');
   if (!o.date) o.uncertain_fields.push('date');
