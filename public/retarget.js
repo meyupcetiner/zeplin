@@ -40,9 +40,9 @@ export async function retargetPage(ctx) {
       <select class="in" id="ro"><option value="">Sipariş sayısı</option>${[['1', 'Tek sipariş'], ['2', '2+ sipariş'], ['3', '3+ sipariş'], ['5', '5+ sipariş']].map(([v, t]) => `<option value="${v}" ${ST.orders === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
     </div>
     <div class="rt-row chips">
-      <label class="chk"><input type="checkbox" id="rp" ${ST.phone ? 'checked' : ''}> Telefonu olanlar</label>
-      <label class="chk"><input type="checkbox" id="rd" ${ST.due ? 'checked' : ''}> Sipariş zamanı gelenler</label>
-      <label class="chk"><input type="checkbox" id="rf" ${ST.fresh ? 'checked' : ''}> Son 14 günde aranmayan / mesaj atılmayan</label>
+      <label class="rt-chk"><input type="checkbox" id="rp" ${ST.phone ? 'checked' : ''}> Telefonu olanlar</label>
+      <label class="rt-chk"><input type="checkbox" id="rd" ${ST.due ? 'checked' : ''}> Sipariş zamanı gelenler</label>
+      <label class="rt-chk"><input type="checkbox" id="rf" ${ST.fresh ? 'checked' : ''}> Son 14 günde aranmayan / mesaj atılmayan</label>
     </div>
     <div class="rt-range">
       <div class="rt-range-hd"><b>Toplam sipariş tutarı</b><span class="sp"></span><span class="muted small" id="rrs"></span></div>
